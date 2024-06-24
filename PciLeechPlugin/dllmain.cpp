@@ -169,13 +169,13 @@ extern "C" void RC_CallConv EnumerateRemoteSectionsAndModules(RC_Pointer handle,
 			(pSections = (PIMAGE_SECTION_HEADER)malloc(cSections * sizeof(IMAGE_SECTION_HEADER))) &&
 			VMMDLL_ProcessGetSectionsU(_hVmm, dwPID, pModuleEntries->pMap[i].uszText, pSections, cSections, &cSections);
 
-		/*if (result) {
+		if (result) {
 			for (j = 0; j < cSections; j++) {
 				sectionEntry = pSections + j;
 
 				auto it =
 					std::lower_bound(std::begin(sections), std::end(sections), reinterpret_cast<void*>(pModuleEntries->pMap[i].vaBase),
-						[&sections](const auto& lhs, const void*& rhs) { return lhs.BaseAddress < rhs; });
+						[&sections](const auto& lhs, const void* rhs) { return lhs.BaseAddress < rhs; });
 
 				auto sectionAddress = (uintptr_t)(pModuleEntries->pMap[i].vaBase + sectionEntry->VirtualAddress);
 
@@ -199,7 +199,7 @@ extern "C" void RC_CallConv EnumerateRemoteSectionsAndModules(RC_Pointer handle,
 					}
 				}
 			}
-		}*/
+		}
 		free(pSections);
 	}
 	VMMDLL_MemFree(pModuleEntries);
