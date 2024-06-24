@@ -1,4 +1,5 @@
 #include "vmmdll.h"
+#include "leechcore.h"
 #include "ReClassNET_Plugin.hpp"
 #include <algorithm>
 #include <cstdint>
@@ -27,21 +28,21 @@ extern "C" void RC_CallConv EnumerateProcesses(EnumerateProcessCallback callback
 		}
 
 		if (!_hVmm) {
-			MessageBoxA(0, "FAIL: VMMDLL_Initialize", 0, MB_OK | MB_ICONERROR);
+			printf( "FAIL: VMMDLL_Initialize\n");
 
-			ExitProcess(-1);
+			exit(-1);
 		}
 	}
 
 	BOOL result;
-	ULONG64 cPIDs = 0;
+	SIZE_T cPIDs = 0;
 	DWORD i, * pPIDs = NULL;
 
 	result =
-		VMMDLL_PidList(_hVmm, NULL, &cPIDs) && (pPIDs = (DWORD*)LocalAlloc(LMEM_ZEROINIT, cPIDs * sizeof(DWORD))) && VMMDLL_PidList(_hVmm, pPIDs, &cPIDs);
+		VMMDLL_PidList(_hVmm, NULL, &cPIDs) && (pPIDs = (DWORD*)malloc((SIZE_T)(cPIDs * sizeof(DWORD)))) && VMMDLL_PidList(_hVmm, pPIDs, &cPIDs);
 
 	if (!result) {
-		LocalFree(pPIDs);
+		free(pPIDs);
 		return;
 	}
 
@@ -50,7 +51,7 @@ extern "C" void RC_CallConv EnumerateProcesses(EnumerateProcessCallback callback
 
 		VMMDLL_PROCESS_INFORMATION info;
 		SIZE_T cbInfo = sizeof(VMMDLL_PROCESS_INFORMATION);
-		ZeroMemory(&info, cbInfo);
+		memset(&info, 0, cbInfo);
 		info.magic = VMMDLL_PROCESS_INFORMATION_MAGIC;
 		info.wVersion = VMMDLL_PROCESS_INFORMATION_VERSION;
 
@@ -71,7 +72,7 @@ extern "C" void RC_CallConv EnumerateProcesses(EnumerateProcessCallback callback
 		}
 	}
 
-	LocalFree(pPIDs);
+	free(pPIDs);
 }
 
 extern "C" void RC_CallConv EnumerateRemoteSectionsAndModules(RC_Pointer handle, EnumerateRemoteSectionsCallback callbackSection,
@@ -88,12 +89,11 @@ extern "C" void RC_CallConv EnumerateRemoteSectionsAndModules(RC_Pointer handle,
 	PVMMDLL_MAP_PTE pMemMapEntries = NULL;
 	PVMMDLL_MAP_PTEENTRY memMapEntry = NULL;
 
-	result = VMMDLL_Map_GetPte(_hVmm, dwPID, TRUE, &pMemMapEntries);
+	result = VMMDLL_Map_GetPteU(_hVmm, dwPID, true, &pMemMapEntries);
 
 	if (!result) {
-		MessageBoxA(0, "FAIL: VMMDLL_Map_GetPte", 0, MB_OK | MB_ICONERROR);
 
-		ExitProcess(-1);
+		exit(-1);
 	}
 
 
@@ -127,11 +127,7 @@ extern "C" void RC_CallConv EnumerateRemoteSectionsAndModules(RC_Pointer handle,
 			else {
 				section.Type = SectionType::Image;
 
-				LPWSTR w = memMapEntry->wszText;
-				char c[64] = { 0 };
-				wcstombs(c, w, wcslen(w));
-
-				MultiByteToUnicode(c, section.ModulePath, PATH_MAXIMUM_LENGTH);
+				MultiByteToUnicode(memMapEntry->uszText, section.ModulePath, PATH_MAXIMUM_LENGTH);
 			}
 		}
 		else {
@@ -145,12 +141,12 @@ extern "C" void RC_CallConv EnumerateRemoteSectionsAndModules(RC_Pointer handle,
 	DWORD cModuleEntries = 0;
 	PVMMDLL_MAP_MODULE pModuleEntries = NULL;
 
-	result = VMMDLL_Map_GetModule(_hVmm, dwPID, &pModuleEntries, NULL);
+	result = VMMDLL_Map_GetModuleU(_hVmm, dwPID, &pModuleEntries, NULL);
 
 	if (!result) {
-		MessageBoxA(0, "FAIL: VMMDLL_Map_GetModule", 0, MB_OK | MB_ICONERROR);
+		printf( "FAIL: VMMDLL_Map_GetModule\n");
 
-		ExitProcess(-1);
+		exit(-1);
 	}
 
 	for (i = 0; i < pModuleEntries->cMap; i++) {
@@ -159,11 +155,7 @@ extern "C" void RC_CallConv EnumerateRemoteSectionsAndModules(RC_Pointer handle,
 		data.BaseAddress = (RC_Pointer)pModuleEntries->pMap[i].vaBase;
 		data.Size = (RC_Size)pModuleEntries->pMap[i].cbImageSize;
 
-		LPWSTR ws = pModuleEntries->pMap[i].wszText;
-		char cs[64] = { 0 };
-		wcstombs(cs, ws, wcslen(ws));
-
-		MultiByteToUnicode(cs, data.Path, PATH_MAXIMUM_LENGTH);
+		MultiByteToUnicode(pModuleEntries->pMap[i].uszText, data.Path, PATH_MAXIMUM_LENGTH);
 
 		callbackModule(&data);
 
@@ -173,17 +165,17 @@ extern "C" void RC_CallConv EnumerateRemoteSectionsAndModules(RC_Pointer handle,
 		DWORD cSections = 0;
 		PIMAGE_SECTION_HEADER sectionEntry, pSections = NULL;
 
-		result = VMMDLL_ProcessGetSections(_hVmm, dwPID, pModuleEntries->pMap[i].wszText, NULL, 0, &cSections) && cSections &&
-			(pSections = (PIMAGE_SECTION_HEADER)LocalAlloc(0, cSections * sizeof(IMAGE_SECTION_HEADER))) &&
-			VMMDLL_ProcessGetSections(_hVmm, dwPID, pModuleEntries->pMap[i].wszText, pSections, cSections, &cSections);
+		result = VMMDLL_ProcessGetSectionsU(_hVmm, dwPID, pModuleEntries->pMap[i].uszText, NULL, 0, &cSections) && cSections &&
+			(pSections = (PIMAGE_SECTION_HEADER)malloc(cSections * sizeof(IMAGE_SECTION_HEADER))) &&
+			VMMDLL_ProcessGetSectionsU(_hVmm, dwPID, pModuleEntries->pMap[i].uszText, pSections, cSections, &cSections);
 
-		if (result) {
+		/*if (result) {
 			for (j = 0; j < cSections; j++) {
 				sectionEntry = pSections + j;
 
 				auto it =
-					std::lower_bound(std::begin(sections), std::end(sections), reinterpret_cast<LPVOID>(pModuleEntries->pMap[i].vaBase),
-						[&sections](const auto& lhs, const LPVOID& rhs) { return lhs.BaseAddress < rhs; });
+					std::lower_bound(std::begin(sections), std::end(sections), reinterpret_cast<void*>(pModuleEntries->pMap[i].vaBase),
+						[&sections](const auto& lhs, const void*& rhs) { return lhs.BaseAddress < rhs; });
 
 				auto sectionAddress = (uintptr_t)(pModuleEntries->pMap[i].vaBase + sectionEntry->VirtualAddress);
 
@@ -207,8 +199,8 @@ extern "C" void RC_CallConv EnumerateRemoteSectionsAndModules(RC_Pointer handle,
 					}
 				}
 			}
-		}
-		LocalFree(pSections);
+		}*/
+		free(pSections);
 	}
 	VMMDLL_MemFree(pModuleEntries);
 
@@ -227,7 +219,7 @@ extern "C" RC_Pointer RC_CallConv OpenRemoteProcess(RC_Pointer id, ProcessAccess
 extern "C" bool RC_CallConv IsProcessValid(RC_Pointer handle) {
 	VMMDLL_PROCESS_INFORMATION info;
 	SIZE_T cbInfo = sizeof(VMMDLL_PROCESS_INFORMATION);
-	ZeroMemory(&info, cbInfo);
+	memset(&info, 0, cbInfo);
 	info.magic = VMMDLL_PROCESS_INFORMATION_MAGIC;
 	info.wVersion = VMMDLL_PROCESS_INFORMATION_VERSION;
 
@@ -286,7 +278,13 @@ extern "C" bool RC_CallConv AwaitDebugEvent(DebugEvent * evt, int timeoutInMilli
 extern "C" void RC_CallConv HandleDebugEvent(DebugEvent * evt) {
 }
 
-extern "C" bool RC_CallConv SetHardwareBreakpoint(RC_Pointer id, RC_Pointer address, HardwareBreakpointRegister reg, HardwareBreakpointTrigger type,
-	HardwareBreakpointSize size, bool set) {
+extern "C" bool RC_CallConv SetHardwareBreakpoint(RC_Pointer id, RC_Pointer address, HardwareBreakpointRegister reg, HardwareBreakpointTrigger type, HardwareBreakpointSize size, bool set) {
 	return false;
+}
+
+void __attribute__((constructor)) dll_main() {
+	
+}
+
+void __attribute__((deconstructor)) dll_exit() {
 }

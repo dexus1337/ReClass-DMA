@@ -1,0 +1,152 @@
+﻿{
+	"version": 3,
+	"configurePresets": 
+	[
+		{
+			"name": "cplusplus-base",
+			"hidden": true,
+			"cacheVariables": 
+			{
+				"CMAKE_CXX_STANDARD": "20"
+			}
+		},
+		{
+			"name": "windows-base",
+			"hidden": true,
+			"generator": "Ninja",
+			"binaryDir": "${sourceDir}/out/build/${presetName}",
+			"installDir": "${sourceDir}/out/install/${presetName}",
+			"cacheVariables": 
+			{
+				"CMAKE_C_COMPILER": "cl.exe",
+				"CMAKE_CXX_COMPILER": "cl.exe"
+			},
+			"condition": 
+			{
+				"type": "equals",
+				"lhs": "${hostSystemName}",
+				"rhs": "Windows"
+			}
+		},
+		{
+			"name": "linux-base",
+			"hidden": true,
+			"generator": "Ninja",
+			"binaryDir": "${sourceDir}/out/build/${presetName}",
+			"installDir": "${sourceDir}/out/install/${presetName}",
+			"cacheVariables": 
+			{
+                "CMAKE_BUILD_RPATH": "./"
+			},
+			"condition": 
+			{
+				"type": "equals",
+				"lhs": "${hostSystemName}",
+				"rhs": "Linux"
+			},
+			"vendor": {
+				"microsoft.com/VisualStudioRemoteSettings/CMake/1.0": {
+					"sourceDir": "$env{HOME}/compile/$ms{projectDirName}"
+				}
+			}
+		},
+		{
+			"name": "macos-base",
+			"hidden": true,
+			"generator": "Ninja",
+			"binaryDir": "${sourceDir}/out/build/${presetName}",
+			"installDir": "${sourceDir}/out/install/${presetName}",
+			"condition": {
+				"type": "equals",
+				"lhs": "${hostSystemName}",
+				"rhs": "Darwin"
+			},
+			"vendor": {
+				"microsoft.com/VisualStudioRemoteSettings/CMake/1.0": {
+					"sourceDir": "$env{HOME}/compile/$ms{projectDirName}"
+				}
+			}
+		},
+		{
+			"name": "debug-base",
+			"hidden": true,
+			"cacheVariables": 
+			{
+				"CMAKE_BUILD_TYPE": "Debug"
+			}
+		},
+		{
+			"name": "release-base",
+			"hidden": true,
+			"cacheVariables": 
+			{
+				"CMAKE_BUILD_TYPE": "Release"
+			}
+		},{
+			"name": "release-debuginfo-base",
+			"hidden": true,
+			"cacheVariables": 
+			{
+				"CMAKE_BUILD_TYPE": "RelWithDebInfo"
+			}
+		},
+		{
+			"name": "x86_32-base",
+			"hidden": true,
+			"architecture": 
+			{
+				"value": "x86",
+				"strategy": "external"
+			}
+		},
+		{
+			"name": "x86_64-base",
+			"hidden": true,
+			"architecture": 
+			{
+				"value": "x64",
+				"strategy": "external"
+			}
+		},
+		{
+			"name": "arm-base",
+			"hidden": true
+		},
+		{
+			"name": "debug-windows-x86_64",
+			"displayName": "debug-windows-x86_64",
+			"inherits": [ "cplusplus-base", "windows-base", "debug-base", "x86_64-base" ],
+			"cacheVariables": 
+			{
+				"CMAKE_CXX_FLAGS": "-D_WIN32"
+			}
+		},
+		{
+			"name": "release-windows-x86_64",
+			"displayName": "release-windows-x86_64",
+			"inherits": [ "cplusplus-base", "windows-base", "release-base", "x86_64-base" ],
+			"cacheVariables": 
+			{
+				"CMAKE_CXX_FLAGS": "-D_WIN32"
+			}
+		},
+		{
+			"name": "debug-linux-x86_64",
+			"displayName": "debug-linux-x86_64",
+			"inherits": [ "cplusplus-base", "linux-base", "debug-base", "x86_64-base" ],
+			"cacheVariables": 
+			{
+                "CMAKE_CXX_FLAGS": "-L. -pthread -fPIC -fpermissive -DLINUX"
+			}
+		},
+		{
+			"name": "release-linux-x86_64",
+			"displayName": "release-linux-x86_64",
+			"inherits": [ "cplusplus-base", "linux-base", "release-base", "x86_64-base" ],
+			"cacheVariables":
+			{
+                "CMAKE_CXX_FLAGS": "-L. -pthread -fPIC -fpermissive -DLINUX"
+			}
+		}
+	]
+}
