@@ -282,9 +282,12 @@ extern "C" bool RC_CallConv SetHardwareBreakpoint(RC_Pointer id, RC_Pointer addr
 	return false;
 }
 
+#ifdef LINUX
 void __attribute__((constructor)) dll_main() {
 	
 }
 
 void __attribute__((deconstructor)) dll_exit() {
 }
+#elif defined _WIN32
+#endif
