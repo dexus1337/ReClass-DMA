@@ -10,7 +10,7 @@ static VMM_HANDLE _hVmm = NULL;
 
 static const bool _hasMemMap = std::filesystem::exists("mmap.txt");
 
-extern "C" void RC_CallConv EnumerateProcesses(EnumerateProcessCallback callbackProcess) {
+extern "C" RC_Export void RC_CallConv EnumerateProcesses(EnumerateProcessCallback callbackProcess) {
 	if (callbackProcess == nullptr) {
 		return;
 	}
@@ -75,7 +75,7 @@ extern "C" void RC_CallConv EnumerateProcesses(EnumerateProcessCallback callback
 	free(pPIDs);
 }
 
-extern "C" void RC_CallConv EnumerateRemoteSectionsAndModules(RC_Pointer handle, EnumerateRemoteSectionsCallback callbackSection,
+extern "C" RC_Export void RC_CallConv EnumerateRemoteSectionsAndModules(RC_Pointer handle, EnumerateRemoteSectionsCallback callbackSection,
 	EnumerateRemoteModulesCallback callbackModule) {
 	if (callbackSection == nullptr && callbackModule == nullptr) {
 		return;
@@ -212,11 +212,11 @@ extern "C" void RC_CallConv EnumerateRemoteSectionsAndModules(RC_Pointer handle,
 	}
 }
 
-extern "C" RC_Pointer RC_CallConv OpenRemoteProcess(RC_Pointer id, ProcessAccess desiredAccess) {
+extern "C" RC_Export RC_Pointer RC_CallConv OpenRemoteProcess(RC_Pointer id, ProcessAccess desiredAccess) {
 	return id;
 }
 
-extern "C" bool RC_CallConv IsProcessValid(RC_Pointer handle) {
+extern "C" RC_Export bool RC_CallConv IsProcessValid(RC_Pointer handle) {
 	VMMDLL_PROCESS_INFORMATION info;
 	SIZE_T cbInfo = sizeof(VMMDLL_PROCESS_INFORMATION);
 	memset(&info, 0, cbInfo);
@@ -230,7 +230,7 @@ extern "C" bool RC_CallConv IsProcessValid(RC_Pointer handle) {
 	return false;
 }
 
-extern "C" void RC_CallConv CloseRemoteProcess(RC_Pointer handle)
+extern "C" RC_Export void RC_CallConv CloseRemoteProcess(RC_Pointer handle)
 {
 	if (_hVmm)
 	{
@@ -239,7 +239,7 @@ extern "C" void RC_CallConv CloseRemoteProcess(RC_Pointer handle)
 	}
 }
 
-extern "C" bool RC_CallConv ReadRemoteMemory(RC_Pointer handle, RC_Pointer address, RC_Pointer buffer, int offset, int size) {
+extern "C" RC_Export bool RC_CallConv ReadRemoteMemory(RC_Pointer handle, RC_Pointer address, RC_Pointer buffer, int offset, int size) {
 	buffer = reinterpret_cast<RC_Pointer>(reinterpret_cast<uintptr_t>(buffer) + offset);
 
 	if (VMMDLL_MemRead(_hVmm, (DWORD)handle, (ULONG64)address, (PBYTE)buffer, size)) {
@@ -249,7 +249,7 @@ extern "C" bool RC_CallConv ReadRemoteMemory(RC_Pointer handle, RC_Pointer addre
 	return false;
 }
 
-extern "C" bool RC_CallConv WriteRemoteMemory(RC_Pointer handle, RC_Pointer address, RC_Pointer buffer, int offset, int size)
+extern "C" RC_Export bool RC_CallConv WriteRemoteMemory(RC_Pointer handle, RC_Pointer address, RC_Pointer buffer, int offset, int size)
 {
 	// Mem Writing Not Supported!
 	return false;
@@ -261,24 +261,24 @@ extern "C" bool RC_CallConv WriteRemoteMemory(RC_Pointer handle, RC_Pointer addr
 ////////////////////////////////////////
 ////////////////////////////////////////
 
-extern "C" void RC_CallConv ControlRemoteProcess(RC_Pointer handle, ControlRemoteProcessAction action) {
+extern "C" RC_Export void RC_CallConv ControlRemoteProcess(RC_Pointer handle, ControlRemoteProcessAction action) {
 }
 
-extern "C" bool RC_CallConv AttachDebuggerToProcess(RC_Pointer id) {
+extern "C" RC_Export bool RC_CallConv AttachDebuggerToProcess(RC_Pointer id) {
 	return false;
 }
 
-extern "C" void RC_CallConv DetachDebuggerFromProcess(RC_Pointer id) {
+extern "C" RC_Export void RC_CallConv DetachDebuggerFromProcess(RC_Pointer id) {
 }
 
-extern "C" bool RC_CallConv AwaitDebugEvent(DebugEvent * evt, int timeoutInMilliseconds) {
+extern "C" RC_Export bool RC_CallConv AwaitDebugEvent(DebugEvent * evt, int timeoutInMilliseconds) {
 	return false;
 }
 
-extern "C" void RC_CallConv HandleDebugEvent(DebugEvent * evt) {
+extern "C" RC_Export void RC_CallConv HandleDebugEvent(DebugEvent * evt) {
 }
 
-extern "C" bool RC_CallConv SetHardwareBreakpoint(RC_Pointer id, RC_Pointer address, HardwareBreakpointRegister reg, HardwareBreakpointTrigger type, HardwareBreakpointSize size, bool set) {
+extern "C" RC_Export bool RC_CallConv SetHardwareBreakpoint(RC_Pointer id, RC_Pointer address, HardwareBreakpointRegister reg, HardwareBreakpointTrigger type, HardwareBreakpointSize size, bool set) {
 	return false;
 }
 

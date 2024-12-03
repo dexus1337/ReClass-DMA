@@ -48,6 +48,8 @@ if ( ${CMAKE_CXX_FLAGS} MATCHES "^.*_WIN32.*$" )
         ${CMAKE_BINARY_DIR}/leechcore.lib
     )
 
+    target_sources( PciLeechPlugin PRIVATE PciLeechPlugin.rc )
+
     target_link_libraries( PciLeechPlugin leechcore )
     target_link_libraries( PciLeechPlugin vmm )
 endif ( )

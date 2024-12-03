@@ -10,8 +10,10 @@
 // OS Specific
 
 #ifdef __linux__
+	#define RC_Export
 	#define RC_CallConv
 #elif _WIN32
+	#define RC_Export __declspec( dllexport )
 	#define RC_CallConv __stdcall
 #else
 	static_assert(false, "Missing RC_CallConv specification");
