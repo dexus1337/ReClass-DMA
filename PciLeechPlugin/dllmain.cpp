@@ -46,6 +46,11 @@ extern "C" RC_Export void RC_CallConv EnumerateProcesses(EnumerateProcessCallbac
 		return;
 	}
 
+    EnumerateProcessData dataphy = {};
+    dataphy.Id = -1;
+    MultiByteToUnicode("Physical Memory", dataphy.Name, PATH_MAXIMUM_LENGTH);
+    callbackProcess(&dataphy);
+
 	for (i = 0; i < cPIDs; i++) {
 		DWORD dwPID = pPIDs[i];
 
@@ -91,124 +96,123 @@ extern "C" RC_Export void RC_CallConv EnumerateRemoteSectionsAndModules(RC_Point
 
 	result = VMMDLL_Map_GetPteU(_hVmm, dwPID, true, &pMemMapEntries);
 
-	if (!result) {
+	if (result) 
+    {
 
-		exit(-1);
-	}
+        std::vector< EnumerateRemoteSectionData > sections;
 
+        for (i = 0; i < pMemMapEntries->cMap; i++) {
+            memMapEntry = &pMemMapEntries->pMap[i];
 
-	std::vector< EnumerateRemoteSectionData > sections;
+            EnumerateRemoteSectionData section = {};
+            section.BaseAddress = (RC_Pointer)memMapEntry->vaBase;
+            section.Size = memMapEntry->cPages << 12;
 
-	for (i = 0; i < pMemMapEntries->cMap; i++) {
-		memMapEntry = &pMemMapEntries->pMap[i];
+            section.Protection = SectionProtection::NoAccess;
+            section.Category = SectionCategory::Unknown;
 
-		EnumerateRemoteSectionData section = {};
-		section.BaseAddress = (RC_Pointer)memMapEntry->vaBase;
-		section.Size = memMapEntry->cPages << 12;
+            if (memMapEntry->fPage & VMMDLL_MEMMAP_FLAG_PAGE_NS)
+                section.Protection |= SectionProtection::Read;
+            if (memMapEntry->fPage & VMMDLL_MEMMAP_FLAG_PAGE_W)
+                section.Protection |= SectionProtection::Write;
+            if (!(memMapEntry->fPage & VMMDLL_MEMMAP_FLAG_PAGE_NX))
+                section.Protection |= SectionProtection::Execute;
 
-		section.Protection = SectionProtection::NoAccess;
-		section.Category = SectionCategory::Unknown;
+            if (memMapEntry->wszText[0]) {
+                if ((memMapEntry->wszText[0] == 'H' && memMapEntry->wszText[1] == 'E' && memMapEntry->wszText[2] == 'A' &&
+                    memMapEntry->wszText[3] == 'P') ||
+                    (memMapEntry->wszText[0] == '[' && memMapEntry->wszText[1] == 'H' && memMapEntry->wszText[2] == 'E' &&
+                        memMapEntry->wszText[3] == 'A' && memMapEntry->wszText[4] == 'P')) {
+                    section.Type = SectionType::Private;
 
-		if (memMapEntry->fPage & VMMDLL_MEMMAP_FLAG_PAGE_NS)
-			section.Protection |= SectionProtection::Read;
-		if (memMapEntry->fPage & VMMDLL_MEMMAP_FLAG_PAGE_W)
-			section.Protection |= SectionProtection::Write;
-		if (!(memMapEntry->fPage & VMMDLL_MEMMAP_FLAG_PAGE_NX))
-			section.Protection |= SectionProtection::Execute;
+                }
+                else {
+                    section.Type = SectionType::Image;
 
-		if (memMapEntry->wszText[0]) {
-			if ((memMapEntry->wszText[0] == 'H' && memMapEntry->wszText[1] == 'E' && memMapEntry->wszText[2] == 'A' &&
-				memMapEntry->wszText[3] == 'P') ||
-				(memMapEntry->wszText[0] == '[' && memMapEntry->wszText[1] == 'H' && memMapEntry->wszText[2] == 'E' &&
-					memMapEntry->wszText[3] == 'A' && memMapEntry->wszText[4] == 'P')) {
-				section.Type = SectionType::Private;
+                    MultiByteToUnicode(memMapEntry->uszText, section.ModulePath, PATH_MAXIMUM_LENGTH);
+                }
+            }
+            else {
+                section.Type = SectionType::Mapped;
+            }
 
-			}
-			else {
-				section.Type = SectionType::Image;
+            sections.push_back(std::move(section));
+        }
+        VMMDLL_MemFree(pMemMapEntries);
 
-				MultiByteToUnicode(memMapEntry->uszText, section.ModulePath, PATH_MAXIMUM_LENGTH);
-			}
-		}
-		else {
-			section.Type = SectionType::Mapped;
-		}
+        DWORD cModuleEntries = 0;
+        PVMMDLL_MAP_MODULE pModuleEntries = NULL;
 
-		sections.push_back(std::move(section));
-	}
-	VMMDLL_MemFree(pMemMapEntries);
+        result = VMMDLL_Map_GetModuleU(_hVmm, dwPID, &pModuleEntries, NULL);
 
-	DWORD cModuleEntries = 0;
-	PVMMDLL_MAP_MODULE pModuleEntries = NULL;
+        if (!result) {
+            printf( "FAIL: VMMDLL_Map_GetModule\n");
 
-	result = VMMDLL_Map_GetModuleU(_hVmm, dwPID, &pModuleEntries, NULL);
+            exit(-1);
+        }
 
-	if (!result) {
-		printf( "FAIL: VMMDLL_Map_GetModule\n");
+        for (i = 0; i < pModuleEntries->cMap; i++) {
 
-		exit(-1);
-	}
+            EnumerateRemoteModuleData data = {};
+            data.BaseAddress = (RC_Pointer)pModuleEntries->pMap[i].vaBase;
+            data.Size = (RC_Size)pModuleEntries->pMap[i].cbImageSize;
 
-	for (i = 0; i < pModuleEntries->cMap; i++) {
+            MultiByteToUnicode(pModuleEntries->pMap[i].uszText, data.Path, PATH_MAXIMUM_LENGTH);
 
-		EnumerateRemoteModuleData data = {};
-		data.BaseAddress = (RC_Pointer)pModuleEntries->pMap[i].vaBase;
-		data.Size = (RC_Size)pModuleEntries->pMap[i].cbImageSize;
+            callbackModule(&data);
 
-		MultiByteToUnicode(pModuleEntries->pMap[i].uszText, data.Path, PATH_MAXIMUM_LENGTH);
+            // !!!!!!!!!
+            // <warning>
+            // this code crashes some processes, possibly a bug with vmm.dll
+            DWORD cSections = 0;
+            PIMAGE_SECTION_HEADER sectionEntry, pSections = NULL;
 
-		callbackModule(&data);
+            result = VMMDLL_ProcessGetSectionsU(_hVmm, dwPID, pModuleEntries->pMap[i].uszText, NULL, 0, &cSections) && cSections &&
+                (pSections = (PIMAGE_SECTION_HEADER)malloc(cSections * sizeof(IMAGE_SECTION_HEADER))) &&
+                VMMDLL_ProcessGetSectionsU(_hVmm, dwPID, pModuleEntries->pMap[i].uszText, pSections, cSections, &cSections);
 
-		// !!!!!!!!!
-		// <warning>
-		// this code crashes some processes, possibly a bug with vmm.dll
-		DWORD cSections = 0;
-		PIMAGE_SECTION_HEADER sectionEntry, pSections = NULL;
+            if (result) {
+                for (j = 0; j < cSections; j++) {
+                    sectionEntry = pSections + j;
 
-		result = VMMDLL_ProcessGetSectionsU(_hVmm, dwPID, pModuleEntries->pMap[i].uszText, NULL, 0, &cSections) && cSections &&
-			(pSections = (PIMAGE_SECTION_HEADER)malloc(cSections * sizeof(IMAGE_SECTION_HEADER))) &&
-			VMMDLL_ProcessGetSectionsU(_hVmm, dwPID, pModuleEntries->pMap[i].uszText, pSections, cSections, &cSections);
+                    auto it =
+                        std::lower_bound(std::begin(sections), std::end(sections), reinterpret_cast<void*>(pModuleEntries->pMap[i].vaBase),
+                            [&sections](const auto& lhs, const void* rhs) { return lhs.BaseAddress < rhs; });
 
-		if (result) {
-			for (j = 0; j < cSections; j++) {
-				sectionEntry = pSections + j;
+                    auto sectionAddress = (uintptr_t)(pModuleEntries->pMap[i].vaBase + sectionEntry->VirtualAddress);
 
-				auto it =
-					std::lower_bound(std::begin(sections), std::end(sections), reinterpret_cast<void*>(pModuleEntries->pMap[i].vaBase),
-						[&sections](const auto& lhs, const void* rhs) { return lhs.BaseAddress < rhs; });
+                    for (auto k = it; k != std::end(sections); ++k) {
+                        uintptr_t start = (uintptr_t)k->BaseAddress;
+                        uintptr_t end = (uintptr_t)k->BaseAddress + k->Size;
 
-				auto sectionAddress = (uintptr_t)(pModuleEntries->pMap[i].vaBase + sectionEntry->VirtualAddress);
+                        if (sectionAddress >= start && sectionAddress < end) {
+                            // Copy the name because it is not null padded.
+                            char buffer[IMAGE_SIZEOF_SHORT_NAME + 1] = { 0 };
+                            std::memcpy(buffer, sectionEntry->Name, IMAGE_SIZEOF_SHORT_NAME);
 
-				for (auto k = it; k != std::end(sections); ++k) {
-					uintptr_t start = (uintptr_t)k->BaseAddress;
-					uintptr_t end = (uintptr_t)k->BaseAddress + k->Size;
-
-					if (sectionAddress >= start && sectionAddress < end) {
-						// Copy the name because it is not null padded.
-						char buffer[IMAGE_SIZEOF_SHORT_NAME + 1] = { 0 };
-						std::memcpy(buffer, sectionEntry->Name, IMAGE_SIZEOF_SHORT_NAME);
-
-						if (std::strcmp(buffer, ".text") == 0 || std::strcmp(buffer, "code") == 0) {
-							k->Category = SectionCategory::CODE;
-						}
-						else if (std::strcmp(buffer, ".data") == 0 || std::strcmp(buffer, "data") == 0 ||
-							std::strcmp(buffer, ".rdata") == 0 || std::strcmp(buffer, ".idata") == 0) {
-							k->Category = SectionCategory::DATA;
-						}
-						MultiByteToUnicode(buffer, k->Name, IMAGE_SIZEOF_SHORT_NAME);
-					}
-				}
-			}
-		}
-		free(pSections);
-	}
-	VMMDLL_MemFree(pModuleEntries);
+                            if (std::strcmp(buffer, ".text") == 0 || std::strcmp(buffer, "code") == 0) {
+                                k->Category = SectionCategory::CODE;
+                            }
+                            else if (std::strcmp(buffer, ".data") == 0 || std::strcmp(buffer, "data") == 0 ||
+                                std::strcmp(buffer, ".rdata") == 0 || std::strcmp(buffer, ".idata") == 0) {
+                                k->Category = SectionCategory::DATA;
+                            }
+                            MultiByteToUnicode(buffer, k->Name, IMAGE_SIZEOF_SHORT_NAME);
+                        }
+                    }
+                }
+            }
+            free(pSections);
+        }
+        VMMDLL_MemFree(pModuleEntries);
 
 
-	if (callbackSection != nullptr) {
-		for (auto&& section : sections) {
-			callbackSection(&section);
-		}
+        if (callbackSection != nullptr) {
+            for (auto&& section : sections) {
+                callbackSection(&section);
+            }
+        }
+    
 	}
 }
 
@@ -222,6 +226,9 @@ extern "C" RC_Export bool RC_CallConv IsProcessValid(RC_Pointer handle) {
 	memset(&info, 0, cbInfo);
 	info.magic = VMMDLL_PROCESS_INFORMATION_MAGIC;
 	info.wVersion = VMMDLL_PROCESS_INFORMATION_VERSION;
+
+    if ((DWORD)handle == -1)
+        return true;
 
 	if (VMMDLL_ProcessGetInformation(_hVmm, (DWORD)handle, &info, &cbInfo)) {
 		return true;
