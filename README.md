@@ -1,5 +1,6 @@
 ## Notes on this fork
 - CMake Project with Linux Support
+- Physical Memory access through pseudo Process "Physical Memory"
 
 # ReClass.NET-PciLeechPlugin
 A plugin that integrates vmm.dll from the https://github.com/ufrisk/MemProcFS project to allow ReClass.NET to function over a PCIe FPGA device.
