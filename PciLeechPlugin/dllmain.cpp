@@ -289,6 +289,31 @@ extern "C" RC_Export bool RC_CallConv SetHardwareBreakpoint(RC_Pointer id, RC_Po
 	return false;
 }
 
+extern "C" RC_Export RC_Pointer RC_CallConv InitializeInput() {
+    return nullptr;
+}
+
+extern "C" RC_Export bool RC_CallConv GetPressedKeys(RC_Pointer handle, int32_t* state[], int* count) {
+    return false;
+}
+
+extern "C" RC_Export void RC_CallConv ReleaseInput(RC_Pointer handle) {
+
+}
+
+extern "C" RC_Export int32_t RC_CallConv ConnectServer(const char* pIpStr, short port) {
+    return 0;
+}
+
+extern "C" RC_Export void RC_CallConv DisconnectServer() {
+
+}
+
+extern "C" RC_Export bool RC_CallConv OpenDumpFile(RC_Pointer dumpFilePath){
+    return false;
+}
+
+
 #ifdef LINUX
 void __attribute__((constructor)) dll_main() {
 	
