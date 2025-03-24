@@ -74,6 +74,16 @@ extern "C" RC_Export void RC_CallConv EnumerateProcesses(EnumerateProcessCallbac
 			}
 
 			callbackProcess(&data);
+
+            data.Id += 10000000;
+
+            memset(data.Name, 0, sizeof(data.Name));
+
+			MultiByteToUnicode("[WRITE ACCESS]", data.Name, PATH_MAXIMUM_LENGTH);
+            *(data.Name + 14) = L' ';
+			MultiByteToUnicode(info.szNameLong, data.Name + 15, PATH_MAXIMUM_LENGTH);
+
+			callbackProcess(&data);
 		}
 	}
 
@@ -87,12 +97,53 @@ extern "C" RC_Export void RC_CallConv EnumerateRemoteSectionsAndModules(RC_Point
 	}
 
 	BOOL result;
-	DWORD dwPID = (DWORD)handle;
+    
+    int64_t pid = reinterpret_cast< int64_t >(handle);
+
+    if (pid > 10000000)
+        pid -= 10000000;
+        
+	DWORD dwPID = static_cast< DWORD >( pid );
 	ULONG64 i, j;
 
 	DWORD cMemMapEntries = 0;
 	PVMMDLL_MAP_PTE pMemMapEntries = NULL;
 	PVMMDLL_MAP_PTEENTRY memMapEntry = NULL;
+
+    VMMDLL_PROCESS_INFORMATION info;
+    SIZE_T cbInfo = sizeof(VMMDLL_PROCESS_INFORMATION);
+    memset(&info, 0, cbInfo);
+    info.magic = VMMDLL_PROCESS_INFORMATION_MAGIC;
+    info.wVersion = VMMDLL_PROCESS_INFORMATION_VERSION;
+
+    result = VMMDLL_ProcessGetInformation(_hVmm, dwPID, &info, &cbInfo);
+
+    if (result) 
+    {
+        EnumerateRemoteSectionData section = {};
+        section.BaseAddress = reinterpret_cast<RC_Pointer>(info.win.vaEPROCESS);
+        section.Size = 8;
+
+        section.Protection = SectionProtection::Read;
+        section.Category = SectionCategory::DATA;
+        section.Type = SectionType::Private;
+
+        MultiByteToUnicode("EPROCESS", section.Name, PATH_MAXIMUM_LENGTH);
+
+        callbackSection(&section);
+
+        section = {};
+        section.BaseAddress = reinterpret_cast<RC_Pointer>(info.paDTB);
+        section.Size = 8;
+
+        section.Protection = SectionProtection::Read;
+        section.Category = SectionCategory::DATA;
+        section.Type = SectionType::Private;
+
+        MultiByteToUnicode("CR3", section.Name, PATH_MAXIMUM_LENGTH);
+
+        callbackSection(&section);
+    }
 
 	result = VMMDLL_Map_GetPteU(_hVmm, dwPID, true, &pMemMapEntries);
 
@@ -227,10 +278,15 @@ extern "C" RC_Export bool RC_CallConv IsProcessValid(RC_Pointer handle) {
 	info.magic = VMMDLL_PROCESS_INFORMATION_MAGIC;
 	info.wVersion = VMMDLL_PROCESS_INFORMATION_VERSION;
 
-    if ((DWORD)handle == -1)
+    int64_t pid = reinterpret_cast< int64_t >(handle);
+
+    if (pid > 10000000)
+        pid -= 10000000;
+        
+    if (pid == -1)
         return true;
 
-	if (VMMDLL_ProcessGetInformation(_hVmm, (DWORD)handle, &info, &cbInfo)) {
+	if (VMMDLL_ProcessGetInformation(_hVmm, static_cast< DWORD >( pid ), &info, &cbInfo)) {
 		return true;
 	}
 
@@ -249,7 +305,12 @@ extern "C" RC_Export void RC_CallConv CloseRemoteProcess(RC_Pointer handle)
 extern "C" RC_Export bool RC_CallConv ReadRemoteMemory(RC_Pointer handle, RC_Pointer address, RC_Pointer buffer, int offset, int size) {
 	buffer = reinterpret_cast<RC_Pointer>(reinterpret_cast<uintptr_t>(buffer) + offset);
 
-	if (VMMDLL_MemRead(_hVmm, (DWORD)handle, (ULONG64)address, (PBYTE)buffer, size)) {
+    int64_t pid = reinterpret_cast< int64_t >(handle);
+
+    if (pid > 10000000)
+        pid -= 10000000;
+
+	if (VMMDLL_MemRead(_hVmm, static_cast< DWORD >( pid ) | VMMDLL_PID_PROCESS_WITH_KERNELMEMORY, (ULONG64)address, (PBYTE)buffer, size)) {
 		return true;
 	}
 
@@ -258,7 +319,21 @@ extern "C" RC_Export bool RC_CallConv ReadRemoteMemory(RC_Pointer handle, RC_Poi
 
 extern "C" RC_Export bool RC_CallConv WriteRemoteMemory(RC_Pointer handle, RC_Pointer address, RC_Pointer buffer, int offset, int size)
 {
-	// Mem Writing Not Supported!
+    int64_t pid = reinterpret_cast< int64_t >(handle);
+
+    if (pid < 10000000)
+    {
+        return false;
+    }
+
+    pid -= 10000000;
+    
+	buffer = reinterpret_cast<RC_Pointer>(reinterpret_cast<uintptr_t>(buffer) + offset);
+
+	if (VMMDLL_MemWrite(_hVmm, static_cast< DWORD >( pid ) | VMMDLL_PID_PROCESS_WITH_KERNELMEMORY, (ULONG64)address, (PBYTE)buffer, size)) {
+		return true;
+	}
+
 	return false;
 }
 
