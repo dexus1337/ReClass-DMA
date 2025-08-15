@@ -136,7 +136,7 @@ extern "C" RC_Export void RC_CallConv EnumerateRemoteSectionsAndModules(RC_Point
         section.BaseAddress = reinterpret_cast<RC_Pointer>(info.paDTB);
         section.Size = 8;
 
-        section.Protection = SectionProtection::Read;
+        section.Protection = SectionProtection::Read | SectionProtection::Write;
         section.Category = SectionCategory::DATA;
         section.Type = SectionType::Private;
 
@@ -267,7 +267,28 @@ extern "C" RC_Export void RC_CallConv EnumerateRemoteSectionsAndModules(RC_Point
 	}
 }
 
+static ULONG64 curcr3 = 0;
+
 extern "C" RC_Export RC_Pointer RC_CallConv OpenRemoteProcess(RC_Pointer id, ProcessAccess desiredAccess) {
+    
+    int64_t pid = reinterpret_cast< int64_t >(id);
+
+    if (pid > 10000000)
+        pid -= 10000000;
+        
+    if (pid == -1)
+        return id;
+
+    VMMDLL_PROCESS_INFORMATION curdata  = VMMDLL_PROCESS_INFORMATION( );
+    SIZE_T infosize                     = sizeof( VMMDLL_PROCESS_INFORMATION );
+    curdata.magic                       = VMMDLL_PROCESS_INFORMATION_MAGIC;
+    curdata.wVersion                    = VMMDLL_PROCESS_INFORMATION_VERSION;
+
+    if ( !VMMDLL_ProcessGetInformation( _hVmm, (ULONG64)pid, &curdata, &infosize ) )
+        return 0;
+    
+    curcr3 = curdata.paDTB;
+
 	return id;
 }
 
@@ -310,6 +331,12 @@ extern "C" RC_Export bool RC_CallConv ReadRemoteMemory(RC_Pointer handle, RC_Poi
     if (pid > 10000000)
         pid -= 10000000;
 
+    if ((ULONG64)address == curcr3 && size == 8)
+    {
+        *reinterpret_cast<ULONG64*>(reinterpret_cast<uintptr_t>(buffer) + offset) = curcr3;
+        return true;
+    }
+
 	if (VMMDLL_MemRead(_hVmm, static_cast< DWORD >( pid ) | VMMDLL_PID_PROCESS_WITH_KERNELMEMORY, (ULONG64)address, (PBYTE)buffer, size)) {
 		return true;
 	}
@@ -329,6 +356,17 @@ extern "C" RC_Export bool RC_CallConv WriteRemoteMemory(RC_Pointer handle, RC_Po
     pid -= 10000000;
     
 	buffer = reinterpret_cast<RC_Pointer>(reinterpret_cast<uintptr_t>(buffer) + offset);
+
+    if ((ULONG64)address == curcr3 && size == 8)
+    {
+        ULONG64 newcr = *reinterpret_cast<ULONG64*>(reinterpret_cast<uintptr_t>(buffer) + offset);
+        if ( !VMMDLL_ConfigSet( _hVmm, VMMDLL_OPT_PROCESS_DTB | pid, newcr ) )
+            return false;
+
+        curcr3 = newcr;
+        
+        return true;
+    }
 
 	if (VMMDLL_MemWrite(_hVmm, static_cast< DWORD >( pid ) | VMMDLL_PID_PROCESS_WITH_KERNELMEMORY, (ULONG64)address, (PBYTE)buffer, size)) {
 		return true;
